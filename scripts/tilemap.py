@@ -1,8 +1,24 @@
 # all permutaitions of -1,0,1 in pairs
 import pygame
+import json
+
+AUTOTILE_MAP = {
+    # sorted to hash tuples in any order
+    # tiles for all squares in a 3x3 square
+    tuple(sorted([(1, 0), (0, 1)])): 0,
+    tuple(sorted([(1, 0), (0, 1), (-1, 0)])): 1,
+    tuple(sorted([(-1, 0), (0, 1)])): 2, 
+    tuple(sorted([(-1, 0), (0, -1), (0, 1)])): 3,
+    tuple(sorted([(-1, 0), (0, -1)])): 4,
+    tuple(sorted([(-1, 0), (0, -1), (1, 0)])): 5,
+    tuple(sorted([(1, 0), (0, -1)])): 6,
+    tuple(sorted([(1, 0), (0, -1), (0, 1)])): 7,
+    tuple(sorted([(1, 0), (-1, 0), (0, 1), (0, -1)])): 8,
+}
 
 NEIGHBOUR_OFFSETS = [(-1,0), (-1,-1), (0,-1), (1,-1), (1,0), (0,0), (-1,1), (0,1), (1,1)]
 PHYSICS_TILES = {'grass', 'stone'}
+AUTOTILE_TILES = {'grass', 'stone'}
 
 class Tilemap:
     def __init__(self, game, tile_size=16):
@@ -14,13 +30,14 @@ class Tilemap:
         # can store location like '3;10': 'grass'
         # can use tuples but this is easier due to how files are stored
         
-        for i in range(10):
-            # vertical line of grass from 3 to 12 at y=10
-            self.tilemap[str(3+i) + ';10'] = {'type': 'grass', 'variant': 1, 'pos': (3+i,10)}
-            # extract pos as tuple here because they are easier to work with
+        # example code to populate tilemap
+        # for i in range(10):
+        #     # vertical line of grass from 3 to 12 at y=10
+        #     self.tilemap[str(3+i) + ';10'] = {'type': 'grass', 'variant': 1, 'pos': (3+i,10)}
+        #     # extract pos as tuple here because they are easier to work with
             
-            # horizontal line
-            self.tilemap['10;' + str(5+i)] = {'type': 'stone', 'variant': 1, 'pos': (10,5+i)}
+        #     # horizontal line
+        #     self.tilemap['10;' + str(5+i)] = {'type': 'stone', 'variant': 1, 'pos': (10,5+i)}
             
     # get tiles around a given pixel position
     def tiles_around(self, pos):
@@ -70,6 +87,37 @@ class Tilemap:
         #                tile['pos'][1]*self.tile_size - offset[1])
         #             )
         
+    def save(self, path):
+        f = open(path, 'w')
+        json.dump({
+            'tilemap': self.tilemap,
+            'size': self.tile_size,
+            'offgrid': self.offgrid_tiles
+        }, f)
+        f.close()
+
+    def load(self, path):
+        f = open(path, 'r')
+        map_data = json.load(f)
+        f.close()
         
+        self.tilemap = map_data['tilemap']
+        self.tile_size = map_data['size']
+        self.offgrid_tiles = map_data['offgrid']
+        
+    def autotile(self):
+        for loc in self.tilemap:
+            tile = self.tilemap[loc]
+            if tile['type'] not in AUTOTILE_TILES:
+                continue
+            neighbors = set()
+            for shift in [(-1,0), (1,0), (0,1), (0,-1)]:
+                check_loc = str(tile['pos'][0] + shift[0]) + ';' + str(tile['pos'][1] + shift[1])
+                if check_loc in self.tilemap:
+                    if self.tilemap[check_loc]['type'] == tile['type']:
+                        neighbors.add(shift)
+            neighbors = tuple(sorted(neighbors))
+            if neighbors in AUTOTILE_MAP:
+                tile['variant'] = AUTOTILE_MAP[neighbors]
     
             

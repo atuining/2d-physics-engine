@@ -52,7 +52,7 @@ class Game:
 
         self.player = Player(self, (50, 50), (8, 15))
 
-        self.scroll = [0, 0]
+        self.scroll = [0, 0] # camera's location
         
     def run(self):
         while True:
