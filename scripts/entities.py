@@ -1,4 +1,7 @@
 import pygame
+import math
+import random
+from scripts.particle import Particle
 
 class PhysicsEntity:
     def __init__(self, game, e_type, pos, size):
@@ -79,12 +82,6 @@ class PhysicsEntity:
         if self.collisions['down'] or self.collisions['up']:
             self.velocity[1] = 0
             
-        # friction in x axis
-        if self.velocity[0] > 0:
-            self.velocity[0] = max(self.velocity[0] - 0.1, 0)
-        elif self.velocity[0] < 0:
-            self.velocity[0] = min(self.velocity[0] + 0.1, 0)
-            
         self.animation.update()
         
     def render(self, surf, offset=(0,0)):
@@ -104,6 +101,7 @@ class Player(PhysicsEntity):
         self.MAX_JUMPS = 2
         self.jumps = self.MAX_JUMPS
         self.wall_slide = False
+        self.dashing = 0
         
     def update(self, tilemap, movement=(0,0)):
         super().update(tilemap, movement)
@@ -130,6 +128,35 @@ class Player(PhysicsEntity):
                 self.set_action('run')
             else:
                 self.set_action('idle')
+                
+        if abs(self.dashing) in {60, 50}:
+            for i in range(20):
+                speed = random.random() * 0.5 + 0.5
+                angle = random.random() * math.pi * 2
+                pvelocity = [math.cos(angle) * speed, math.sin(angle) * speed]
+                self.game.particles.append(Particle(self.game, 'particle', self.rect().center, velocity=pvelocity, frame=random.randint(0,7)))
+        if self.dashing > 0:
+            self.dashing = max(0, self.dashing-1)
+        elif self.dashing < 0:
+            self.dashing = min(0, self.dashing+1)
+        if abs(self.dashing) > 50:
+            self.velocity[0] = 8 * abs(self.dashing)/self.dashing
+            if abs(self.dashing) == 51:
+                self.velocity[0] *= 0.1
+            pvelocity = [3 * random.random() * abs(self.dashing)/self.dashing, 0]
+            self.game.particles.append(Particle(self.game, 'particle', self.rect().center, velocity=pvelocity, frame=random.randint(0,7))) 
+            
+        # friction in x axis
+        if self.velocity[0] > 0:
+            self.velocity[0] = max(self.velocity[0] - 0.1, 0)
+        elif self.velocity[0] < 0:
+            self.velocity[0] = min(self.velocity[0] + 0.1, 0)
+    
+    # do not render player for first 10 frames of dash animation     
+    def render(self, surf, offset=(0,0)):
+        if abs(self.dashing) <= 50:
+            super().render(surf, offset)
+        
 
     def jump(self):
         if self.wall_slide:
@@ -151,3 +178,9 @@ class Player(PhysicsEntity):
             self.air_time = 5
             return True
         
+    def dash(self):
+        if not self.dashing:
+            if self.flip:
+                self.dashing = -60
+            else:
+                self.dashing = 60
