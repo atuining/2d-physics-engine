@@ -1,6 +1,7 @@
 import pygame
 import math
 import random
+import numpy as np
 from scripts.particle import Particle
 from scripts.spark import Spark
 
@@ -13,9 +14,9 @@ class PhysicsEntity:
         # want list here so that if we spawn multiple entities at the same position they don't have the same reference to the position
         # also incase we pass a tuple
         # can also use pygama.math.Vector2 instead
-        self.pos = list(pos)
+        self.pos = np.array(pos)
         self.size = size
-        self.velocity = [0, 0]
+        self.velocity = np.array([0., 0.])
         self.collisions = {
             'left': False,
             'right': False,
@@ -44,7 +45,7 @@ class PhysicsEntity:
     def set_flip(self, flip):
         self.flip = flip
 
-    def update(self, tilemap, movement=(0, 0)):
+    def update(self, tilemap, movement=np.array((0, 0))):
         self.collisions = {
             'left': False,
             'right': False,
@@ -52,8 +53,7 @@ class PhysicsEntity:
             'down': False
         }
 
-        frame_movement = (movement[0] + self.velocity[0],
-                          movement[1] + self.velocity[1])
+        frame_movement = np.float16(movement) + self.velocity
 
         self.pos[0] += frame_movement[0]
         entity_rect = self.rect()
@@ -97,7 +97,7 @@ class PhysicsEntity:
 
         self.animation.update()
 
-    def render(self, surf, offset=(0, 0)):
+    def render(self, surf, offset=np.array((0, 0))):
         # decide if we want to flip image before rendering it
         # flip(img, h_flip, v_flip)
         surf.blit(
@@ -123,10 +123,10 @@ class Player(PhysicsEntity):
         super().update(tilemap, movement)
 
         self.air_time += 1
-        
+
         if self.air_time > 120:
             self.game.dead += 1
-        
+
         if self.collisions['down']:
             self.air_time = 0
             self.jumps = self.MAX_JUMPS
@@ -186,7 +186,7 @@ class Player(PhysicsEntity):
             self.velocity[0] = min(self.velocity[0] + 0.1, 0)
 
     # do not render player for first 10 frames of dash animation
-    def render(self, surf, offset=(0, 0)):
+    def render(self, surf, offset=np.array((0, 0))):
         if abs(self.dashing) <= 50:
             super().render(surf, offset)
 
@@ -238,8 +238,7 @@ class Enemy(PhysicsEntity):
             self.walking = max(0, self.walking - 1)
             # spawn projectile when enemy stops
             if not self.walking:
-                dis = (self.game.player.pos[0] - self.pos[0],
-                       self.game.player.pos[1] - self.pos[1])
+                dis = self.game.player.pos - self.pos
                 if (abs(dis[1]) < 16):
                     if self.flip and dis[0] < 0:
                         self.game.projectiles.append(
@@ -277,8 +276,7 @@ class Enemy(PhysicsEntity):
                     angle = random.random() * 2 * math.pi
                     speed = random.random() * 5
                     self.game.sparks.append(
-                        Spark(self.rect().center, angle,
-                              2 + random.random()))
+                        Spark(self.rect().center, angle, 2 + random.random()))
                     self.game.particles.append(
                         Particle(
                             self.game,
@@ -290,12 +288,14 @@ class Enemy(PhysicsEntity):
                             ],
                             frame=random.randint(0, 7),
                         ))
-                self.game.sparks.append(Spark(self.rect().center, 0, 5 + random.random()))
-                self.game.sparks.append(Spark(self.rect().center, math.pi, 5 + random.random()))
+                self.game.sparks.append(
+                    Spark(self.rect().center, 0, 5 + random.random()))
+                self.game.sparks.append(
+                    Spark(self.rect().center, math.pi, 5 + random.random()))
                 return True
 
     # render gun
-    def render(self, surf, offset=(0, 0)):
+    def render(self, surf, offset=np.array((0, 0))):
         super().render(surf, offset=offset)
         if self.flip:
             surf.blit(

@@ -2,6 +2,8 @@ import random
 import sys
 import math
 import pygame
+import asyncio
+import numpy as np
 from scripts.entities import PhysicsEntity, Player, Enemy
 from scripts.utils import load_images, load_img, Animation
 from scripts.tilemap import Tilemap
@@ -22,7 +24,7 @@ class Game:
         self.display = pygame.Surface((320, 240))
 
         self.clock = pygame.time.Clock()
-        self.movement = [False, False]
+        self.movement = np.array([False, False])
 
         # # wanna use png images usually because they are lossless
         # self.img = pygame.image.load('data/images/clouds/cloud_1.png')
@@ -84,8 +86,8 @@ class Game:
         self.load_level(0)
 
     def load_level(self, map_id):
-        self.tilemap.load('data/maps/' + str(map_id) + '.json')
-        self.scroll = [0, 0]  # camera's location
+        asyncio.run(self.tilemap.load('data/maps/' + str(map_id) + '.json'))
+        self.scroll = np.array([0., 0.])  # camera's location
 
         # spawn leaf particles from trees
         self.leaf_spawners = []
@@ -128,20 +130,24 @@ class Game:
             # self.screen.blit(self.img, self.img_pos)
 
             self.display.blit(self.assets['background'], (0, 0))
-            
+
+            # reload level if players dies in 40 frames
             if self.dead:
                 self.dead += 1
                 if self.dead > 40:
                     self.load_level(0)
 
+            # camera offset
             self.scroll[0] += (self.player.rect().centerx -
                                self.display.get_width() / 2 -
                                self.scroll[0]) / 30
             self.scroll[1] += (self.player.rect().centery -
                                self.display.get_height() / 2 -
                                self.scroll[1]) / 30
-            render_scroll = (int(self.scroll[0]), int(self.scroll[1]))
+            render_scroll = np.array(
+                (int(self.scroll[0]), int(self.scroll[1])))
 
+            # randomly generate leaves from plants
             for rect in self.leaf_spawners:
                 # random.random() = [0,1) times 49999 here so rate of spawning is lower
                 # and positively correlated to size of rect
@@ -156,20 +162,24 @@ class Game:
                                  velocity=[-0.1, 0.3],
                                  frame=random.randint(0, 20)))
 
+            # render clouds
             self.clouds.update()
             self.clouds.render(self.display, offset=render_scroll)
 
             self.tilemap.render(self.display, offset=render_scroll)
 
+            # render enemies
             for enemy in self.enemies.copy():
                 kill = enemy.update(self.tilemap, (0, 0))
                 enemy.render(self.display, offset=render_scroll)
                 if kill:
                     self.enemies.remove(enemy)
 
+            # render player
             if not self.dead:
-                self.player.update(self.tilemap,
-                                (self.movement[1] - self.movement[0], 0))
+                self.player.update(
+                    self.tilemap,
+                    (int(self.movement[1]) - int(self.movement[0]), 0))
                 self.player.render(self.display, offset=render_scroll)
 
             # [[x,y], velocity, timer]
@@ -181,6 +191,7 @@ class Game:
                                   (projectile[0][0] - img.get_width() / 2 -
                                    render_scroll[0], projectile[0][1] -
                                    img.get_height() / 2 - render_scroll[1]))
+                # vfx for projectile hitting wall
                 if self.tilemap.solid_check(projectile[0]):
                     self.projectiles.remove(projectile)
                     for _ in range(4):
@@ -190,8 +201,10 @@ class Game:
                                 random.random() - 0.5 +
                                 (math.pi if projectile[1] > 0 else 0),
                                 2 + random.random()))
+                # time out projectile
                 elif projectile[2] > 360:
                     self.projectiles.remove(projectile)
+                # vfx for projectile hitting player and player death
                 elif abs(self.player.dashing) < 50:
                     if self.player.rect().collidepoint(projectile[0]):
                         self.projectiles.remove(projectile)
@@ -212,15 +225,17 @@ class Game:
                                         0.5,
                                         math.sin(math.pi + angle) * speed * 0.5
                                     ],
-                                    frame = random.randint(0,7),
-                                    ))
+                                    frame=random.randint(0, 7),
+                                ))
 
+            # render sparks
             for spark in self.sparks.copy():
                 kill = spark.update()
                 spark.render(self.display, offset=render_scroll)
                 if kill:
                     self.sparks.remove(spark)
 
+            # render particles
             for particle in self.particles.copy():
                 kill = particle.update()
                 particle.render(self.display, offset=render_scroll)
@@ -233,6 +248,7 @@ class Game:
 
             # print(self.tilemap.tiles_around(self.player.pos))
 
+            # keyboard controls
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -256,8 +272,9 @@ class Game:
                 pygame.transform.scale(self.display, self.screen.get_size()),
                 (0, 0))
             pygame.display.update()
-            self.clock.tick(
-                60)  # a dynamic sleep so that the window runs at 60 fps
+
+            # dynamic sleep so that the window runs at 60 fps
+            self.clock.tick(60)
 
 
 Game().run()
